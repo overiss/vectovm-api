@@ -34,7 +34,6 @@ func (a *Application) initHandlerContainer(ctx context.Context) {
 	}
 
 	a.handlerContainer = hanlderHttp.NewContainer(
-		hanlderHttp.NewHealthHandler(a.cfg.Version, a.serviceContainer.DB()),
 		hanlderHttp.NewAuthHandler(a.serviceContainer.Auth),
 		hanlderHttp.NewUserHandler(a.serviceContainer.User),
 		hanlderHttp.NewDatanodeHandler(a.serviceContainer.Datanode),

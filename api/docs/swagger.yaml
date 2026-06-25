@@ -81,15 +81,6 @@ definitions:
         example: invalid request
         type: string
     type: object
-  model.HealthResponse:
-    properties:
-      status:
-        example: ok
-        type: string
-      version:
-        example: v1.0.0
-        type: string
-    type: object
   model.Job:
     properties:
       created_at:
@@ -125,12 +116,6 @@ definitions:
         type: string
     required:
     - refresh_token
-    type: object
-  model.ReadyResponse:
-    properties:
-      status:
-        example: ready
-        type: string
     type: object
   model.RefreshTokenRequest:
     properties:
@@ -652,34 +637,6 @@ paths:
       summary: Get VM
       tags:
       - vm
-  /healthz:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/model.HealthResponse'
-      summary: Liveness probe
-      tags:
-      - health
-  /readyz:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/model.ReadyResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/model.ErrorResponse'
-      summary: Readiness probe
-      tags:
-      - health
 schemes:
 - http
 securityDefinitions:

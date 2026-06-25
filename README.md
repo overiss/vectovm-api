@@ -1,52 +1,52 @@
 # vectovm-api
 
-BFF и доменный API для платформы **VectoVM**. Сервис стоит между React-фронтендом (через nginx) и внешними компонентами: [go-oauthv2](https://github.com/overiss/go-oauthv2), PostgreSQL, HashiCorp Vault и [vectovm-mapi](https://github.com/overiss/vectovm-mapi).
+BFF and domain API for the **VectoVM** platform. The service sits between the React frontend (via nginx) and external components: [go-oauthv2](https://github.com/overiss/go-oauthv2), PostgreSQL, HashiCorp Vault, and [vectovm-mapi](https://github.com/overiss/vectovm-mapi).
 
-## Архитектура
+## Architecture
 
 ```
 React → nginx → vectovm-api ──► PostgreSQL (connection storage)
                     │
-                    ├── go-oauthv2 (регистрация, OAuth, JWKS)
-                    ├── Vault API (master key для envelope encryption)
+                    ├── go-oauthv2 (registration, OAuth, JWKS)
+                    ├── Vault API (master key for envelope encryption)
                     └── vectovm-mapi (datanode provisioning)
 ```
 
-| Компонент | Роль |
+| Component | Role |
 |-----------|------|
-| **go-oauthv2** | Хранит пользователей и выдаёт OAuth access/refresh tokens |
-| **vectovm-api** | Доменная логика, связь user ↔ datanode ↔ VM |
+| **go-oauthv2** | Stores users and issues OAuth access/refresh tokens |
+| **vectovm-api** | Domain logic, user ↔ datanode ↔ VM relationships |
 | **PostgreSQL** | `users`, `datanodes`, `vms` |
-| **Vault (API domain)** | Master key для envelope encryption SSH-учётных данных VM |
-| **vectovm-mapi** | Асинхронный provisioning datanode по SSH |
+| **Vault (API domain)** | Master key for envelope encryption of VM SSH credentials |
+| **vectovm-mapi** | Async datanode provisioning over SSH |
 
-## HTTP-сервер
+## HTTP server
 
-Один listener на порту из `HTTP_PORT` (по умолчанию `:8081`). Маршруты без авторизации — signup, OAuth, health, swagger. Остальные — с `Authorization: Bearer`.
+Single listener on the port from `HTTP_PORT` (default `:8081`). Unauthenticated routes: signup, OAuth, swagger. All others require `Authorization: Bearer`.
 
-## Быстрый старт
+## Quick start
 
-### Требования
+### Requirements
 
 - Go 1.25+
 - PostgreSQL
 - HashiCorp Vault (master key)
-- Запущенные go-oauthv2 и vectovm-mapi
+- Running go-oauthv2 and vectovm-mapi
 
-### 1. Конфигурация
+### 1. Configuration
 
 ```bash
 cp .env.example .env
-# отредактируйте переменные окружения
+# edit environment variables
 ```
 
-### 2. Master key в Vault
+### 2. Master key in Vault
 
 ```bash
 vault kv put secret/vectovm-api/credentials master_key="$(openssl rand -base64 32)"
 ```
 
-### 3. Запуск
+### 3. Run
 
 ```bash
 make build
@@ -59,68 +59,174 @@ Swagger UI:
 http://localhost:8081/swagger/index.html
 ```
 
-## Конфигурация
+## Configuration
 
-Основные переменные (полный список — в `.env.example`):
+Key variables (full list in `.env.example`):
 
-| Переменная | Описание |
-|------------|----------|
+| Variable | Description |
+|----------|-------------|
 | `HTTP_PORT` | Listen address (`:8081`) |
-| `HTTP_NAME` | Имя сервера в логах |
+| `HTTP_NAME` | Server name in logs |
 | `POSTGRES_DSN` | PostgreSQL connection string |
-| `OAUTH_ISSUER` | URL go-oauthv2 |
-| `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` | OAuth client для BFF |
+| `OAUTH_ISSUER` | go-oauthv2 URL |
+| `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` | OAuth client for BFF |
 | `OAUTH_REDIRECT_URI` | Callback URL |
-| `MAPI_BASE_URL` | URL vectovm-mapi (HTTPS) |
-| `MAPI_BEARER_TOKEN` | Bearer token для mapi |
+| `MAPI_BASE_URL` | vectovm-mapi URL (HTTPS) |
+| `MAPI_BEARER_TOKEN` | Bearer token for mapi |
 | `VAULT_ADDRESS` / `VAULT_TOKEN` | Vault API domain |
-| `VAULT_CREDENTIALS_KEY_PATH` | Путь к master key (`secret/data/vectovm-api/credentials`) |
+| `VAULT_CREDENTIALS_KEY_PATH` | Path to master key (`secret/data/vectovm-api/credentials`) |
 
-## Флоу пользователя
+## User flow
 
-1. **Регистрация** — `POST /api/v1/signup` → go-oauthv2 + запись `oauth_user_id` и per-user DEK в PostgreSQL.
-2. **Логин** — фронтенд → OAuth authorize на go-oauthv2 → `POST /api/v1/auth/token` (code + PKCE).
-3. **Datanode** — `POST /api/v1/datanodes` с SSH-данными → vectovm-mapi (секреты в mapi-vault).
-4. **VM** — `POST /api/v1/vms` с указанием `datanode_name` → проверка владения datanode → envelope encryption SSH login/password в PostgreSQL.
+1. **Registration** — `POST /api/v1/signup` → go-oauthv2 + store `oauth_user_id` and per-user DEK in PostgreSQL.
+2. **Login** — frontend → OAuth authorize on go-oauthv2 → `POST /api/v1/auth/token` (code + PKCE).
+3. **Datanode** — `POST /api/v1/datanodes` with SSH credentials → vectovm-mapi (secrets in mapi-vault).
+4. **VM** — `POST /api/v1/vms` with `datanode_name` → verify datanode ownership → envelope-encrypt SSH login/password in PostgreSQL.
 
 ## Envelope encryption (VM credentials)
 
-Схема аналогична AWS KMS:
+Scheme similar to AWS KMS:
 
 ```
 Vault master_key
       ↓ wrap
-users.encrypted_dek          ← симметричный DEK пользователя
+users.encrypted_dek          ← per-user symmetric DEK
       ↓ encrypt
 vms.encrypted_credentials    ← AES-GCM(JSON {user, password})
 ```
 
-- Master key **никогда** не хранится в БД.
-- У каждого пользователя свой DEK в колонке `users.encrypted_dek`.
-- SSH login/password VM **не возвращаются** в API-ответах.
+- Master key is **never** stored in the database.
+- Each user has their own DEK in the `users.encrypted_dek` column.
+- VM SSH login/password are **not returned** in API responses.
 
 ## API
 
-| Метод | Путь | Auth | Описание |
-|-------|------|------|----------|
-| `GET` | `/healthz` | — | Liveness |
-| `GET` | `/readyz` | — | Readiness (PostgreSQL) |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
 | `GET` | `/swagger/index.html` | — | Swagger UI |
-| `POST` | `/api/v1/signup` | — | Регистрация |
-| `POST` | `/api/v1/auth/token` | — | Обмен code → tokens |
+| `POST` | `/api/v1/signup` | — | Registration |
+| `POST` | `/api/v1/auth/token` | — | Exchange code → tokens |
 | `POST` | `/api/v1/auth/refresh` | — | Refresh token |
 | `POST` | `/api/v1/auth/logout` | — | Revoke refresh token |
-| `GET` | `/api/v1/me` | Bearer | Профиль пользователя |
-| `POST` | `/api/v1/datanodes` | Bearer | Создать datanode (async) |
-| `GET` | `/api/v1/datanodes` | Bearer | Список datanodes |
+| `GET` | `/api/v1/me` | Bearer | User profile |
+| `POST` | `/api/v1/datanodes` | Bearer | Create datanode (async) |
+| `GET` | `/api/v1/datanodes` | Bearer | List datanodes |
 | `POST` | `/api/v1/datanodes/vault/deploy` | Bearer | Deploy Vault |
-| `GET` | `/api/v1/datanodes/jobs/:id` | Bearer | Статус job |
+| `GET` | `/api/v1/datanodes/jobs/:id` | Bearer | Job status |
 | `GET` | `/api/v1/datanodes/:name/runtime` | Bearer | Runtime info |
-| `POST` | `/api/v1/vms` | Bearer | Создать VM |
-| `GET` | `/api/v1/vms` | Bearer | Список VM |
-| `GET` | `/api/v1/vms/:name` | Bearer | Получить VM |
+| `POST` | `/api/v1/vms` | Bearer | Create VM |
+| `GET` | `/api/v1/vms` | Bearer | List VMs |
+| `GET` | `/api/v1/vms/:name` | Bearer | Get VM |
 
-### Пример: создать VM
+Base URL in examples: `http://localhost:8081`. For protected endpoints, use `ACCESS_TOKEN` from the `POST /api/v1/auth/token` response.
+
+### Request examples
+
+#### Swagger UI
+
+```bash
+open http://localhost:8081/swagger/index.html
+# or
+curl -s http://localhost:8081/swagger/index.html
+```
+
+#### Registration — `POST /api/v1/signup`
+
+```bash
+curl -X POST http://localhost:8081/api/v1/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "alice@example.com",
+    "password": "her-secure-password"
+  }'
+```
+
+#### Exchange code → tokens — `POST /api/v1/auth/token`
+
+```bash
+curl -X POST http://localhost:8081/api/v1/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "oauth-authorization-code",
+    "code_verifier": "pkce-code-verifier"
+  }'
+```
+
+#### Refresh token — `POST /api/v1/auth/refresh`
+
+```bash
+curl -X POST http://localhost:8081/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refresh_token": "oauth-refresh-token"
+  }'
+```
+
+#### Logout — `POST /api/v1/auth/logout`
+
+```bash
+curl -X POST http://localhost:8081/api/v1/auth/logout \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refresh_token": "oauth-refresh-token"
+  }'
+```
+
+#### User profile — `GET /api/v1/me`
+
+```bash
+curl http://localhost:8081/api/v1/me \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
+#### Create datanode — `POST /api/v1/datanodes`
+
+```bash
+curl -X POST http://localhost:8081/api/v1/datanodes \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "primary-datanode",
+    "host": "10.0.0.5",
+    "port": 22,
+    "user": "root",
+    "password": "secret"
+  }'
+```
+
+#### List datanodes — `GET /api/v1/datanodes`
+
+```bash
+curl http://localhost:8081/api/v1/datanodes \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
+#### Deploy Vault — `POST /api/v1/datanodes/vault/deploy`
+
+```bash
+curl -X POST http://localhost:8081/api/v1/datanodes/vault/deploy \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "datanode_name": "primary-datanode"
+  }'
+```
+
+#### Job status — `GET /api/v1/datanodes/jobs/:id`
+
+```bash
+curl http://localhost:8081/api/v1/datanodes/jobs/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
+#### Runtime info — `GET /api/v1/datanodes/:name/runtime`
+
+```bash
+curl http://localhost:8081/api/v1/datanodes/primary-datanode/runtime \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
+#### Create VM — `POST /api/v1/vms`
 
 ```bash
 curl -X POST http://localhost:8081/api/v1/vms \
@@ -136,36 +242,50 @@ curl -X POST http://localhost:8081/api/v1/vms \
   }'
 ```
 
+#### List VMs — `GET /api/v1/vms`
+
+```bash
+curl http://localhost:8081/api/v1/vms \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
+#### Get VM — `GET /api/v1/vms/:name`
+
+```bash
+curl http://localhost:8081/api/v1/vms/my-app-vm \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
 ## Swagger / OpenAPI
 
-Интерактивная документация: `http://localhost:8081/swagger/index.html`
+Interactive documentation: `http://localhost:8081/swagger/index.html`
 
-Перегенерация после изменения аннотаций в handlers:
+Regenerate after changing handler annotations:
 
 ```bash
 make swagger
 ```
 
-Артефакты:
+Artifacts:
 
 - `api/docs/swagger.json`
 - `api/docs/swagger.yaml`
 - `api/docs/docs.go`
 
-## Разработка
+## Development
 
 ```bash
 make tidy      # go mod tidy
-make swagger   # перегенерировать OpenAPI
-make build     # собрать bin/vectovm-api
-make run       # собрать и запустить
+make swagger   # regenerate OpenAPI
+make build     # build bin/vectovm-api
+make run       # build and run
 ```
 
-### Структура проекта
+### Project structure
 
 ```
 cmd/vectovm-api/          # entrypoint + swagger meta
-api/docs/                 # сгенерированный OpenAPI
+api/docs/                 # generated OpenAPI
 internal/
   app/                    # wiring, routes
   auth/                   # JWKS verifier
@@ -173,16 +293,16 @@ internal/
   client/mapi/            # vectovm-mapi client
   crypto/                 # envelope encryption
   vault/                  # Vault keystore
-  storage/postgres/       # миграции, пул
+  storage/postgres/       # migrations, pool
   repository/             # users, datanodes, vms
   service/                # auth, user, datanode, vm
   server/http/            # Gin handlers, middleware
 ```
 
-## Связанные репозитории
+## Related repositories
 
 - [go-oauthv2](https://github.com/overiss/go-oauthv2) — OAuth 2.0 authorization server
-- [vectovm-mapi](https://github.com/overiss/vectovm-mapi) — internal management API для datanode
+- [vectovm-mapi](https://github.com/overiss/vectovm-mapi) — internal management API for datanodes
 
 ## License
 

@@ -6,15 +6,6 @@ type ErrorResponse struct {
 	Error string `json:"error" example:"invalid request"`
 }
 
-type HealthResponse struct {
-	Status  string `json:"status" example:"ok"`
-	Version string `json:"version" example:"v1.0.0"`
-}
-
-type ReadyResponse struct {
-	Status string `json:"status" example:"ready"`
-}
-
 type SignUpRequest struct {
 	Email    string `json:"email" binding:"required,email" example:"alice@example.com"`
 	Password string `json:"password" binding:"required,min=8" example:"her-secure-password"`

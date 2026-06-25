@@ -10,8 +10,6 @@ import (
 )
 
 func RegisterRoutes(router *gin.Engine, h *Container) {
-	router.GET("/healthz", h.Health.Healthz)
-	router.GET("/readyz", h.Health.Readyz)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	v1 := router.Group("/api/v1")

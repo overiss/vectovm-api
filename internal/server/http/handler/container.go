@@ -5,7 +5,6 @@ import (
 )
 
 type Container struct {
-	Health   *HealthHandler
 	Auth     *AuthHandler
 	User     *UserHandler
 	Datanode *DatanodeHandler
@@ -14,7 +13,6 @@ type Container struct {
 }
 
 func NewContainer(
-	health *HealthHandler,
 	authHandler *AuthHandler,
 	user *UserHandler,
 	datanode *DatanodeHandler,
@@ -22,7 +20,6 @@ func NewContainer(
 	verifier *auth.Verifier,
 ) *Container {
 	return &Container{
-		Health:   health,
 		Auth:     authHandler,
 		User:     user,
 		Datanode: datanode,
