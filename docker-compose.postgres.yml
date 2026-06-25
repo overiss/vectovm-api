@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vectovm-api-postgres
+    environment:
+      POSTGRES_USER: vectovm
+      POSTGRES_PASSWORD: vectovm
+      POSTGRES_DB: vectovm
+    ports:
+      - "5433:5432"
+    volumes:
+      - vectovm_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vectovm -d vectovm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  vectovm_postgres_data:
