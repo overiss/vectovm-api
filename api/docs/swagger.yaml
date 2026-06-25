@@ -1,0 +1,691 @@
+basePath: /
+definitions:
+  model.CreateDatanodeRequest:
+    properties:
+      host:
+        example: 10.0.0.5
+        type: string
+      name:
+        example: primary-datanode
+        type: string
+      password:
+        example: secret
+        type: string
+      port:
+        example: 22
+        type: integer
+      user:
+        example: root
+        type: string
+    required:
+    - host
+    - name
+    - password
+    - user
+    type: object
+  model.CreateVMRequest:
+    properties:
+      datanode_name:
+        example: primary-datanode
+        type: string
+      host:
+        example: 10.0.0.10
+        type: string
+      name:
+        example: my-app-vm
+        type: string
+      port:
+        example: 22
+        type: integer
+      ssh_password:
+        example: secret
+        type: string
+      ssh_user:
+        example: ubuntu
+        type: string
+    required:
+    - datanode_name
+    - host
+    - name
+    - ssh_password
+    - ssh_user
+    type: object
+  model.DatanodeResponse:
+    properties:
+      created_at:
+        type: string
+      host:
+        type: string
+      id:
+        type: string
+      last_job_id:
+        type: string
+      name:
+        type: string
+      port:
+        type: integer
+      ssh_user:
+        type: string
+    type: object
+  model.DeployVaultRequest:
+    properties:
+      datanode_name:
+        example: primary-datanode
+        type: string
+    required:
+    - datanode_name
+    type: object
+  model.ErrorResponse:
+    properties:
+      error:
+        example: invalid request
+        type: string
+    type: object
+  model.HealthResponse:
+    properties:
+      status:
+        example: ok
+        type: string
+      version:
+        example: v1.0.0
+        type: string
+    type: object
+  model.Job:
+    properties:
+      created_at:
+        type: string
+      error:
+        type: string
+      finished_at:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
+    type: object
+  model.JobResponse:
+    properties:
+      job_id:
+        type: string
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  model.JobStatusResponse:
+    properties:
+      job:
+        $ref: '#/definitions/model.Job'
+    type: object
+  model.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  model.ReadyResponse:
+    properties:
+      status:
+        example: ready
+        type: string
+    type: object
+  model.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  model.RuntimeResponse:
+    properties:
+      datanode:
+        type: string
+      datanode_name:
+        type: string
+      user_id:
+        type: string
+      vault_logs:
+        type: string
+      vault_status:
+        type: string
+    type: object
+  model.SignUpRequest:
+    properties:
+      email:
+        example: alice@example.com
+        type: string
+      password:
+        example: her-secure-password
+        minLength: 8
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  model.SignUpResponse:
+    properties:
+      oauth_user_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      user_id:
+        example: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+        type: string
+    type: object
+  model.TokenExchangeRequest:
+    properties:
+      code:
+        type: string
+      code_verifier:
+        type: string
+    required:
+    - code
+    - code_verifier
+    type: object
+  model.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      scope:
+        type: string
+      token_type:
+        type: string
+    type: object
+  model.UserResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      oauth_user_id:
+        type: string
+    type: object
+  model.VMResponse:
+    properties:
+      created_at:
+        type: string
+      datanode_name:
+        type: string
+      host:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      port:
+        type: integer
+    type: object
+host: localhost:8081
+info:
+  contact:
+    name: VectoVM Team
+    url: https://github.com/overiss/vectovm-api
+  description: |-
+    BFF / domain API for the VectoVM platform. Proxies user registration to go-oauthv2, stores domain data in PostgreSQL, provisions datanodes via vectovm-mapi, and manages user VMs with envelope-encrypted SSH credentials.
+    Protected routes require a Bearer access token from go-oauthv2.
+  license:
+    name: Proprietary
+  termsOfService: https://overiss.github.io/terms
+  title: VectoVM API
+  version: "1.0"
+paths:
+  /api/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revokes refresh token at go-oauthv2.
+      parameters:
+      - description: Refresh token to revoke
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Logout
+      tags:
+      - auth
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Refreshes OAuth session using a refresh token via go-oauthv2.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Refresh access token
+      tags:
+      - auth
+  /api/v1/auth/token:
+    post:
+      consumes:
+      - application/json
+      description: Exchanges OAuth authorization code + PKCE verifier for access and
+        refresh tokens via go-oauthv2.
+      parameters:
+      - description: Authorization code exchange
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.TokenExchangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Exchange authorization code for tokens
+      tags:
+      - auth
+  /api/v1/datanodes:
+    get:
+      description: Returns datanodes owned by the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.DatanodeResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List datanodes
+      tags:
+      - datanode
+    post:
+      consumes:
+      - application/json
+      description: Provisions a datanode via vectovm-mapi (async). SSH credentials
+        are stored in mapi-vault.
+      parameters:
+      - description: Datanode SSH credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreateDatanodeRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/model.JobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create datanode
+      tags:
+      - datanode
+  /api/v1/datanodes/{name}/runtime:
+    get:
+      description: Fetches live datanode and Vault status over SSH via vectovm-mapi.
+      parameters:
+      - description: Datanode name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.RuntimeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get datanode runtime info
+      tags:
+      - datanode
+  /api/v1/datanodes/jobs/{id}:
+    get:
+      description: Polls async job status from vectovm-mapi.
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.JobStatusResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get provisioning job status
+      tags:
+      - datanode
+  /api/v1/datanodes/vault/deploy:
+    post:
+      consumes:
+      - application/json
+      description: Starts async Vault deployment on an existing datanode via vectovm-mapi.
+      parameters:
+      - description: Target datanode
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.DeployVaultRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/model.JobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Deploy Vault on datanode
+      tags:
+      - datanode
+  /api/v1/me:
+    get:
+      description: Returns domain user record linked to the OAuth subject.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Current user profile
+      tags:
+      - user
+  /api/v1/signup:
+    post:
+      consumes:
+      - application/json
+      description: Proxies registration to go-oauthv2 and stores oauth_user_id with
+        a per-user encryption DEK in PostgreSQL.
+      parameters:
+      - description: User credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.SignUpRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.SignUpResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Register user
+      tags:
+      - auth
+  /api/v1/vms:
+    get:
+      description: Returns VMs owned by the authenticated user (credentials are not
+        included).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.VMResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List VMs
+      tags:
+      - vm
+    post:
+      consumes:
+      - application/json
+      description: Registers a user VM linked to an owned datanode. SSH login/password
+        are envelope-encrypted with the user's DEK and stored in PostgreSQL.
+      parameters:
+      - description: VM parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreateVMRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.VMResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create VM
+      tags:
+      - vm
+  /api/v1/vms/{name}:
+    get:
+      description: Returns VM metadata by name (credentials are not included).
+      parameters:
+      - description: VM name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.VMResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get VM
+      tags:
+      - vm
+  /healthz:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.HealthResponse'
+      summary: Liveness probe
+      tags:
+      - health
+  /readyz:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.ReadyResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Readiness probe
+      tags:
+      - health
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: 'OAuth 2.0 access token from go-oauthv2. Format: Bearer {access_token}'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
